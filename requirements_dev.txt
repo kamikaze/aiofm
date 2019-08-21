@@ -1,0 +1,14 @@
+-e .
+codecov
+coverage
+flake8
+pip
+pre-commit
+pytest
+pytest-asyncio
+pytest-cov
+pytest-runner
+Sphinx
+sphinx-autodoc-typehints
+tox
+wheel
