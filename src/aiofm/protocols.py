@@ -1,6 +1,9 @@
+import operator
 import os.path
 from abc import ABCMeta, abstractmethod
-from typing import Sequence, Tuple
+from functools import reduce
+from pathlib import PurePath
+from typing import Mapping, Sequence, Tuple, Union
 
 
 class BaseProtocol(metaclass=ABCMeta):
@@ -57,10 +60,24 @@ class MemProtocol(BaseProtocol):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.path_sep = os.path.sep
+        self._tree = {}
 
     @staticmethod
-    async def ls(path: str, pattern: str = None, *args, **kwargs) -> Sequence:
-        pass
+    def _get_tree_item(tree: Mapping, path: Union[str, PurePath]):
+        try:
+            path_parts = path.parts
+        except AttributeError:
+            path_parts = PurePath(path).parts
+
+        try:
+            return reduce(operator.getitem, path_parts, tree)
+        except KeyError:
+            raise FileNotFoundError
+
+    async def ls(self, path: Union[str, PurePath], pattern: str = None, *args, **kwargs) -> Sequence:
+        item = self._get_tree_item(self._tree, path)
+
+        return tuple(item)
 
     async def open(self, path, *args, **kwargs):
         pass
