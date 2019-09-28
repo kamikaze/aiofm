@@ -250,8 +250,6 @@ class MemProtocol(BaseProtocol):
 class S3Protocol(BaseProtocol):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
-        self.path_sep = os.path.sep
-        self.tree = {}
 
     @staticmethod
     def _split_path(path: Union[str, PurePath]):
@@ -261,62 +259,6 @@ class S3Protocol(BaseProtocol):
             path_parts = PurePath(path).parts
 
         return path_parts
-
-    @classmethod
-    def _remove_tree_item(cls, tree: Mapping, path: Union[str, PurePath]):
-        path_parts = cls._split_path(path)
-
-        try:
-            del reduce(operator.getitem, path_parts[:-1], tree)[path_parts[-1]]
-        except KeyError:
-            pass
-
-    @classmethod
-    def _get_tree_item(cls, tree: Mapping, path: Union[str, PurePath]):
-        path_parts = cls._split_path(path)
-
-        try:
-            return reduce(operator.getitem, path_parts, tree)
-        except KeyError:
-            raise FileNotFoundError
-
-    @classmethod
-    def _set_tree_item(cls, tree: Mapping, path: Union[str, PurePath], value: Any):
-        path_parts = cls._split_path(path)
-        current_node = tree
-
-        for path_part in path_parts[:-1]:
-            try:
-                current_node = current_node[path_part]
-
-                if not isinstance(current_node, collections.abc.Mapping):
-                    raise FileNotFoundError(f'Node already exists: {current_node}')
-            except KeyError:
-                new_node = {}
-                current_node[path_part] = new_node
-                current_node = new_node
-
-        try:
-            if type(current_node[path_parts[-1]]) != type(value):
-                raise FileNotFoundError('Node already exists')
-
-            current_node[path_parts[-1]] = value
-        except KeyError:
-            current_node[path_parts[-1]] = value
-
-    @classmethod
-    def _set_parent_tree_item(cls, tree: Mapping, path: Union[str, PurePath], value: Any):
-        try:
-            parent_item_path = path.parent
-        except AttributeError:
-            parent_item_path = PurePath(path).parent
-
-        cls._set_tree_item(tree, parent_item_path, value)
-
-    async def ls(self, path: Union[str, PurePath], pattern: str = None, *args, **kwargs) -> Sequence:
-        item = self._get_tree_item(self.tree, path)
-
-        return tuple(item)
 
     @asynccontextmanager
     async def open(self, path: Union[str, PurePath], *args, **kwargs):
