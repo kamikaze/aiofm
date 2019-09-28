@@ -1,4 +1,5 @@
 import collections.abc
+import logging
 import operator
 import os.path
 from abc import ABCMeta, abstractmethod
@@ -8,6 +9,10 @@ from functools import reduce
 from io import BytesIO, StringIO
 from pathlib import PurePath
 from typing import Any, Mapping, Sequence, Tuple, Union
+
+import aioboto3
+
+logger = logging.getLogger(__name__)
 
 
 class BaseProtocol(metaclass=ABCMeta):
@@ -239,6 +244,157 @@ class MemProtocol(BaseProtocol):
 
     async def rm(self, path: Union[str, PurePath]):
         self._remove_tree_item(self.tree, path)
+
+    async def is_dir(self, path: Union[str, PurePath]) -> bool:
+        return isinstance(self._get_tree_item(self.tree, path), collections.abc.Mapping)
+
+    async def glob(self, pattern: str) -> Tuple:
+        pass
+
+
+class S3Protocol(BaseProtocol):
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.__init_resource(*args, **kwargs)
+
+    def __init_resource(self, *args, **kwargs):
+        try:
+            params = kwargs['params']
+            credentials = params['auth']
+            self.resource = aioboto3.resource(
+                's3', aws_access_key_id=credentials['access_key'], aws_secret_access_key=credentials['access_secret'],
+                endpoint_url=params['S3_ENDPOINT_URL'], verify=params['VERIFY_SSL_CERTIFICATES']
+            )
+        except (TypeError, KeyError):
+            logger.warning('No auth params has been provided for S3')
+
+            self.resource = None
+
+    @staticmethod
+    def _split_path(path: Union[str, PurePath]) -> Sequence[str]:
+        try:
+            path_parts = path.parts
+        except AttributeError:
+            path_parts = PurePath(path).parts
+
+        if path_parts[0] == '/':
+            return path_parts[1], PurePath(*path_parts[2:])
+
+        return path_parts[0], PurePath(*path_parts[1:])
+
+    async def ls(self, path: Union[str, PurePath], pattern: str = None, *args, **kwargs) -> Sequence:
+        bucket_name, path = self._split_path(path)
+        path = f'{path}/'
+
+        objects = self.resource.Bucket(bucket_name).objects.filter(Prefix=path)
+
+        keys = tuple(filter(
+            None, (obj_summary.key.replace(path, '', 1).split('/', 1)[0] for obj_summary in objects)
+        ))
+
+        if keys:
+            return keys
+
+        raise FileNotFoundError
+
+    @asynccontextmanager
+    async def open(self, path: Union[str, PurePath], *args, **kwargs):
+        mode = kwargs.pop('mode', args[0] if len(args) else 'r')
+
+        try:
+            encoding = kwargs.get('encoding', 'utf-8')
+            item = self._get_tree_item(self.tree, path)
+
+            if 'b' in mode:
+                f = ContextualBytesIO(item)
+            else:
+                f = ContextualStringIO(item.decode(encoding))
+
+            yield f
+
+            if 'w' in mode:
+                if 'b' in mode:
+                    item = f.getvalue()
+                else:
+                    item = f.getvalue().encode(encoding)
+
+                self._set_tree_item(self.tree, path, item)
+        except FileNotFoundError:
+            if 'w' in mode or 'a' in mode:
+                f = ContextualStringIO(None, *args, **kwargs)
+
+                yield f
+
+                self._set_tree_item(self.tree, path, f)
+            else:
+                raise
+
+    async def exists(self, path: Union[str, PurePath]) -> bool:
+        try:
+            self._get_tree_item(self.tree, path)
+        except FileNotFoundError:
+            return False
+
+        return True
+
+    async def cp(self, src_path: Union[str, PurePath], dst_path: Union[str, PurePath]):
+        src_path = PurePath(src_path)
+        dst_path_is_dir = isinstance(dst_path, str) and (dst_path.endswith('/') or dst_path.endswith('\\'))
+        dst_path = PurePath(dst_path)
+        src_item = self._get_tree_item(self.tree, src_path)
+        src_is_dir = isinstance(src_item, collections.abc.Mapping)
+
+        try:
+            dst_item = self._get_tree_item(self.tree, dst_path)
+
+            if isinstance(dst_item, collections.abc.Mapping):
+                if src_is_dir:
+                    pass
+                else:
+                    self._set_tree_item(self.tree, dst_path.joinpath(src_path.name), src_item)
+            else:
+                if dst_path_is_dir:
+                    raise ValueError(f'Unable to copy {src_path} to directory path. it is a file')
+
+                if src_is_dir:
+                    raise ValueError(f'Unable to copy directory {src_path} to file {dst_path}')
+                else:
+                    self._set_tree_item(self.tree, dst_path, src_item)
+
+                self._set_tree_item(self.tree, dst_path, src_item)
+        except FileNotFoundError:
+            if src_is_dir:
+                pass
+            else:
+                if dst_path_is_dir:
+                    self._set_tree_item(self.tree, dst_path.joinpath(src_path.name), src_item)
+                else:
+                    self._set_tree_item(self.tree, dst_path, src_item)
+
+    async def mkdir(self, path: Union[str, PurePath]):
+        return
+
+    async def mkdirs(self, path: Union[str, PurePath]):
+        return
+
+    async def mv(self, src_path: Union[str, PurePath], dst_path: Union[str, PurePath]):
+        await self.cp(src_path, dst_path)
+        await self.rm(src_path)
+
+    async def rm(self, path: Union[str, PurePath]):
+        """
+        Removes file
+        """
+
+        if await self.is_dir(path):
+            bucket_name, path = self._split_path(path)
+            key_list = self.resource.Bucket(bucket_name).objects.filter(Prefix=f'{path}/')
+
+            for key in key_list:
+                self.resource.Object(bucket_name, key.key).delete()
+        else:
+            bucket_name, path = self._split_path(path)
+            self.resource.Object(bucket_name, path).delete()
 
     async def is_dir(self, path: Union[str, PurePath]) -> bool:
         return isinstance(self._get_tree_item(self.tree, path), collections.abc.Mapping)

@@ -2,7 +2,7 @@
 # Read more under http://docs.travis-ci.com/user/build-configuration/
 # THIS SCRIPT IS SUPPOSED TO BE AN EXAMPLE. MODIFY IT ACCORDING TO YOUR NEEDS!
 
-dist: bionic
+dist: focal
 sudo: false
 language: python
 virtualenv:
@@ -10,9 +10,24 @@ virtualenv:
 matrix:
   fast_finish: true
   include:
-    - python: 3.7
-      env: DISTRIB="bionic" TOX_PYTHON_VERSION="py37" COVERAGE="true"
-    - env: DISTRIB="conda" PYTHON_VERSION="3.7" COVERAGE="false"
+    - os: linux
+      arch: arm64
+      python: 3.7
+      env: DISTRIB="bionic" TOX_PYTHON_VERSION="py37" COVERAGE="false"
+    - os: linux
+      arch: arm64
+      python: 3.8
+      env: DISTRIB="focal" TOX_PYTHON_VERSION="py38" COVERAGE="true"
+    - os: linux
+      arch: amd64
+      python: 3.7
+      env: DISTRIB="bionic" TOX_PYTHON_VERSION="py37" COVERAGE="false"
+    - os: linux
+      arch: amd64
+      python: 3.8
+      env: DISTRIB="focal" TOX_PYTHON_VERSION="py38" COVERAGE="true"
+#    - env: DISTRIB="conda" PYTHON_VERSION="3.7" COVERAGE="false"
+#    - env: DISTRIB="conda" PYTHON_VERSION="3.8" COVERAGE="false"
 install:
   - source tests/travis_install.sh
   - pip install -r requirements_dev.txt
