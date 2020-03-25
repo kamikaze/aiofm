@@ -2,7 +2,11 @@
 # Read more under http://docs.travis-ci.com/user/build-configuration/
 # THIS SCRIPT IS SUPPOSED TO BE AN EXAMPLE. MODIFY IT ACCORDING TO YOUR NEEDS!
 
-dist: bionic
+arch:
+  - amd64
+  - arm64
+os: linux
+dist: focal
 sudo: false
 language: python
 virtualenv:
