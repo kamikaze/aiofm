@@ -1,4 +1,4 @@
-from typing import Dict, Generator, Tuple
+from typing import Dict, Generator
 
 import pytest
 
@@ -18,7 +18,7 @@ def fs_tree() -> Dict[str, Dict]:
 
 @pytest.fixture(scope='session')
 def fs_list(fs_tree) -> Dict:
-    def flatten(root) -> Generator[Tuple, None, None]:
+    def flatten(root) -> Generator[tuple, None, None]:
         for k, v in root.items():
             if type(v) is dict:
                 for sub_k, sub_v in flatten(v):

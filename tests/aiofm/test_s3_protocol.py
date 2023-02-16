@@ -1,6 +1,6 @@
 import pytest
 
-from aiofm.protocols import S3Protocol
+from aiofm.protocols.s3 import S3Protocol
 
 
 @pytest.mark.asyncio

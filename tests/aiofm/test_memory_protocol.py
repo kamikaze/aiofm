@@ -1,11 +1,11 @@
 import pytest
 
-from aiofm.protocols import MemProtocol
+from aiofm.protocols.memory import MemoryProtocol
 
 
 @pytest.mark.asyncio
 async def test_ls_tmp_dir():
-    fs = MemProtocol()
+    fs = MemoryProtocol()
     fs.tree = {'/': {'tmp': {'xxx': {}, 'a.txt': b'data data data'}}}
 
     assert await fs.ls('/tmp') == ('xxx', 'a.txt')
@@ -13,7 +13,7 @@ async def test_ls_tmp_dir():
 
 @pytest.mark.asyncio
 async def test_ls_inextisting_dir_fails():
-    fs = MemProtocol()
+    fs = MemoryProtocol()
     fs.tree = {'/': {'tmp': {'xxx': {}, 'a.txt': b'data data data'}}}
 
     with pytest.raises(FileNotFoundError):
@@ -22,7 +22,7 @@ async def test_ls_inextisting_dir_fails():
 
 @pytest.mark.asyncio
 async def test_existing_file_exists():
-    fs = MemProtocol()
+    fs = MemoryProtocol()
     fs.tree = {'/': {'tmp': {'xxx': {}, 'a.txt': b'data data data'}}}
 
     assert await fs.exists('/tmp/a.txt') is True
@@ -30,7 +30,7 @@ async def test_existing_file_exists():
 
 @pytest.mark.asyncio
 async def test_inexisting_file_does_not_exist():
-    fs = MemProtocol()
+    fs = MemoryProtocol()
     fs.tree = {'/': {'tmp': {'xxx': {}, 'a.txt': b'data data data'}}}
 
     assert await fs.exists('/tmp/b.txt') is False
@@ -38,7 +38,7 @@ async def test_inexisting_file_does_not_exist():
 
 @pytest.mark.asyncio
 async def test_existing_dir_exists():
-    fs = MemProtocol()
+    fs = MemoryProtocol()
     fs.tree = {'/': {'tmp': {'xxx': {}, 'a.txt': b'data data data'}}}
 
     assert await fs.exists('/tmp/xxx') is True
@@ -46,7 +46,7 @@ async def test_existing_dir_exists():
 
 @pytest.mark.asyncio
 async def test_inexisting_dir_does_not_exist():
-    fs = MemProtocol()
+    fs = MemoryProtocol()
     fs.tree = {'/': {'tmp': {'xxx': {}, 'a.txt': b'data data data'}}}
 
     assert await fs.exists('/tmp/yyy') is False
@@ -54,7 +54,7 @@ async def test_inexisting_dir_does_not_exist():
 
 @pytest.mark.asyncio
 async def test_existing_path_exists():
-    fs = MemProtocol()
+    fs = MemoryProtocol()
     fs.tree = {'/': {'tmp': {'xxx': {}, 'a.txt': b'data data data'}}}
 
     assert await fs.exists('/tmp/a.txt') is True
@@ -62,7 +62,7 @@ async def test_existing_path_exists():
 
 @pytest.mark.asyncio
 async def test_inexisting_path_does_not_exist():
-    fs = MemProtocol()
+    fs = MemoryProtocol()
     fs.tree = {'/': {'tmp': {'xxx': {}, 'a.txt': b'data data data'}}}
 
     assert await fs.exists('/pmt/a.txt') is False
@@ -70,7 +70,7 @@ async def test_inexisting_path_does_not_exist():
 
 @pytest.mark.asyncio
 async def test_file_is_not_a_directory():
-    fs = MemProtocol()
+    fs = MemoryProtocol()
     fs.tree = {'/': {'tmp': {'xxx': {}, 'a.txt': b'data data data'}}}
 
     assert await fs.is_dir('/tmp/a.txt') is False
@@ -78,7 +78,7 @@ async def test_file_is_not_a_directory():
 
 @pytest.mark.asyncio
 async def test_directory_is_a_direcotry():
-    fs = MemProtocol()
+    fs = MemoryProtocol()
     fs.tree = {'/': {'tmp': {'xxx': {}, 'a.txt': b'data data data'}}}
 
     assert await fs.is_dir('/tmp/xxx') is True
@@ -86,7 +86,7 @@ async def test_directory_is_a_direcotry():
 
 @pytest.mark.asyncio
 async def test_inexisting_path_is_dir_check_fails():
-    fs = MemProtocol()
+    fs = MemoryProtocol()
     fs.tree = {'/': {'tmp': {'xxx': {}, 'a.txt': b'data data data'}}}
 
     with pytest.raises(FileNotFoundError):
@@ -95,7 +95,7 @@ async def test_inexisting_path_is_dir_check_fails():
 
 @pytest.mark.asyncio
 async def test_mkdir_first_toplevel():
-    fs = MemProtocol()
+    fs = MemoryProtocol()
 
     await fs.mkdir('/home')
 
@@ -104,7 +104,7 @@ async def test_mkdir_first_toplevel():
 
 @pytest.mark.asyncio
 async def test_mkdir_nested():
-    fs = MemProtocol()
+    fs = MemoryProtocol()
     fs.tree = {'/': {'home': {}}}
 
     await fs.mkdir('/home/user')
@@ -114,7 +114,7 @@ async def test_mkdir_nested():
 
 @pytest.mark.asyncio
 async def test_mkdir_existing_dir():
-    fs = MemProtocol()
+    fs = MemoryProtocol()
     fs.tree = {'/': {'home': {'user': {}}}}
 
     await fs.mkdir('/home/user')
@@ -124,7 +124,7 @@ async def test_mkdir_existing_dir():
 
 @pytest.mark.asyncio
 async def test_mkdir_nested_within_inexisting_path():
-    fs = MemProtocol()
+    fs = MemoryProtocol()
     fs.tree = {'/': {}}
 
     await fs.mkdir('/home/user/documents')
@@ -134,7 +134,7 @@ async def test_mkdir_nested_within_inexisting_path():
 
 @pytest.mark.asyncio
 async def test_mkdir_first_nested():
-    fs = MemProtocol()
+    fs = MemoryProtocol()
 
     await fs.mkdir('/home/user/documents')
 
@@ -143,7 +143,7 @@ async def test_mkdir_first_nested():
 
 @pytest.mark.asyncio
 async def test_mkdir_fails_when_path_is_a_file():
-    fs = MemProtocol()
+    fs = MemoryProtocol()
     fs.tree = {'/': {'tmp': {'xxx': {}, 'a.txt': b'data data data'}}}
 
     with pytest.raises(FileNotFoundError):
@@ -155,7 +155,7 @@ async def test_mkdir_fails_when_path_is_a_file():
 
 @pytest.mark.asyncio
 async def test_mkdirs_first_toplevel():
-    fs = MemProtocol()
+    fs = MemoryProtocol()
 
     await fs.mkdirs('/home')
 
@@ -164,7 +164,7 @@ async def test_mkdirs_first_toplevel():
 
 @pytest.mark.asyncio
 async def test_mkdirs_nested():
-    fs = MemProtocol()
+    fs = MemoryProtocol()
     fs.tree = {'/': {'home': {}}}
 
     await fs.mkdirs('/home/user')
@@ -174,7 +174,7 @@ async def test_mkdirs_nested():
 
 @pytest.mark.asyncio
 async def test_mkdirs_existing_dir():
-    fs = MemProtocol()
+    fs = MemoryProtocol()
     fs.tree = {'/': {'home': {'user': {}}}}
 
     await fs.mkdirs('/home/user')
@@ -184,7 +184,7 @@ async def test_mkdirs_existing_dir():
 
 @pytest.mark.asyncio
 async def test_mkdirs_nested_within_inexisting_path():
-    fs = MemProtocol()
+    fs = MemoryProtocol()
     fs.tree = {'/': {}}
 
     await fs.mkdirs('/home/user/documents')
@@ -194,7 +194,7 @@ async def test_mkdirs_nested_within_inexisting_path():
 
 @pytest.mark.asyncio
 async def test_mkdirs_first_nested():
-    fs = MemProtocol()
+    fs = MemoryProtocol()
 
     await fs.mkdirs('/home/user/documents')
 
@@ -203,7 +203,7 @@ async def test_mkdirs_first_nested():
 
 @pytest.mark.asyncio
 async def test_mkdirs_fails_when_path_is_a_file():
-    fs = MemProtocol()
+    fs = MemoryProtocol()
     fs.tree = {'/': {'tmp': {'xxx': {}, 'a.txt': b'data data data'}}}
 
     with pytest.raises(FileNotFoundError):
@@ -215,7 +215,7 @@ async def test_mkdirs_fails_when_path_is_a_file():
 
 @pytest.mark.asyncio
 async def test_rm_empty_dir():
-    fs = MemProtocol()
+    fs = MemoryProtocol()
     fs.tree = {'/': {'home': {'user': {'documents': {}}}}}
 
     await fs.rm('/home/user/documents')
@@ -225,7 +225,7 @@ async def test_rm_empty_dir():
 
 @pytest.mark.asyncio
 async def test_rm_non_empty_dir():
-    fs = MemProtocol()
+    fs = MemoryProtocol()
     fs.tree = {'/': {'tmp': {'xxx': {}, 'a.txt': b'data data data'}}}
 
     await fs.rm('/tmp')
@@ -235,7 +235,7 @@ async def test_rm_non_empty_dir():
 
 @pytest.mark.asyncio
 async def test_rm_file():
-    fs = MemProtocol()
+    fs = MemoryProtocol()
     fs.tree = {'/': {'tmp': {'xxx': {}, 'a.txt': b'data data data'}}}
 
     await fs.rm('/tmp/a.txt')
@@ -245,7 +245,7 @@ async def test_rm_file():
 
 @pytest.mark.asyncio
 async def test_rm_inexisting_dir():
-    fs = MemProtocol()
+    fs = MemoryProtocol()
 
     await fs.rm('/home/user/documents')
 
@@ -260,7 +260,7 @@ async def test_rm_inexisting_dir():
 
 @pytest.mark.asyncio
 async def test_mv_file_to_existing_dir():
-    fs = MemProtocol()
+    fs = MemoryProtocol()
     fs.tree = {'/': {'tmp': {'xxx': {}, 'a.txt': b'data data data'}}}
 
     await fs.mv('/tmp/a.txt', '/tmp/xxx')
@@ -270,7 +270,7 @@ async def test_mv_file_to_existing_dir():
 
 @pytest.mark.asyncio
 async def test_mv_file_to_inexisting_dir():
-    fs = MemProtocol()
+    fs = MemoryProtocol()
     fs.tree = {'/': {'tmp': {'xxx': {}, 'a.txt': b'data data data'}}}
 
     await fs.mv('/tmp/a.txt', '/tmp/yyy/')
@@ -280,7 +280,7 @@ async def test_mv_file_to_inexisting_dir():
 
 @pytest.mark.asyncio
 async def test_mv_file_to_existing_file():
-    fs = MemProtocol()
+    fs = MemoryProtocol()
     fs.tree = {'/': {'tmp': {'xxx': {'b.txt': b''}, 'a.txt': b'data data data'}}}
 
     await fs.mv('/tmp/a.txt', '/tmp/xxx/b.txt')
@@ -290,7 +290,7 @@ async def test_mv_file_to_existing_file():
 
 @pytest.mark.asyncio
 async def test_mv_file_to_inexisting_file():
-    fs = MemProtocol()
+    fs = MemoryProtocol()
     fs.tree = {'/': {'tmp': {'xxx': {}, 'a.txt': b'data data data'}}}
 
     await fs.mv('/tmp/a.txt', '/tmp/xxx/c.txt')
@@ -300,7 +300,7 @@ async def test_mv_file_to_inexisting_file():
 
 @pytest.mark.asyncio
 async def test_mv_dir_to_existing_file_should_fail():
-    fs = MemProtocol()
+    fs = MemoryProtocol()
     fs.tree = {'/': {'tmp': {'xxx': {}, 'a.txt': b'data data data'}}}
 
     with pytest.raises(ValueError, match='Unable to copy directory /tmp/xxx to file /tmp/a.txt'):
@@ -309,7 +309,7 @@ async def test_mv_dir_to_existing_file_should_fail():
 
 @pytest.mark.asyncio
 async def test_cp_file_to_existing_dir():
-    fs = MemProtocol()
+    fs = MemoryProtocol()
     fs.tree = {'/': {'tmp': {'xxx': {}, 'a.txt': b'data data data'}}}
 
     await fs.cp('/tmp/a.txt', '/tmp/xxx')
@@ -319,7 +319,7 @@ async def test_cp_file_to_existing_dir():
 
 @pytest.mark.asyncio
 async def test_cp_file_to_inexisting_dir():
-    fs = MemProtocol()
+    fs = MemoryProtocol()
     fs.tree = {'/': {'tmp': {'xxx': {}, 'a.txt': b'data data data'}}}
 
     await fs.cp('/tmp/a.txt', '/tmp/yyy/')
@@ -329,7 +329,7 @@ async def test_cp_file_to_inexisting_dir():
 
 @pytest.mark.asyncio
 async def test_cp_file_to_existing_file():
-    fs = MemProtocol()
+    fs = MemoryProtocol()
     fs.tree = {'/': {'tmp': {'xxx': {'b.txt': b''}, 'a.txt': b'data data data'}}}
 
     await fs.cp('/tmp/a.txt', '/tmp/xxx/b.txt')
@@ -339,7 +339,7 @@ async def test_cp_file_to_existing_file():
 
 @pytest.mark.asyncio
 async def test_cp_file_to_inexisting_file():
-    fs = MemProtocol()
+    fs = MemoryProtocol()
     fs.tree = {'/': {'tmp': {'xxx': {}, 'a.txt': b'data data data'}}}
 
     await fs.cp('/tmp/a.txt', '/tmp/xxx/c.txt')
@@ -349,7 +349,7 @@ async def test_cp_file_to_inexisting_file():
 
 @pytest.mark.asyncio
 async def test_cp_dir_to_existing_file_should_fail():
-    fs = MemProtocol()
+    fs = MemoryProtocol()
     fs.tree = {'/': {'tmp': {'xxx': {}, 'a.txt': b'data data data'}}}
 
     with pytest.raises(ValueError, match='Unable to copy directory /tmp/xxx to file /tmp/a.txt'):
@@ -358,7 +358,7 @@ async def test_cp_dir_to_existing_file_should_fail():
 
 @pytest.mark.asyncio
 async def test_open_inexisting_file_for_read_should_fail():
-    fs = MemProtocol()
+    fs = MemoryProtocol()
     fs.tree = {'/': {'tmp': {'xxx': {}, 'a.txt': b'data data data'}}}
 
     with pytest.raises(FileNotFoundError):
@@ -368,7 +368,7 @@ async def test_open_inexisting_file_for_read_should_fail():
 
 @pytest.mark.asyncio
 async def test_open_existing_file_for_read():
-    fs = MemProtocol()
+    fs = MemoryProtocol()
     fs.tree = {'/': {'tmp': {'xxx': {}, 'a.txt': b'data data data'}}}
 
     async with fs.open('/tmp/a.txt') as f:
@@ -377,7 +377,7 @@ async def test_open_existing_file_for_read():
 
 @pytest.mark.asyncio
 async def test_unclosed_file_does_not_change_fs():
-    fs = MemProtocol()
+    fs = MemoryProtocol()
     fs.tree = {'/': {'tmp': {'xxx': {}, 'a.txt': b'data data data'}}}
 
     async with fs.open('/tmp/a.txt', mode='w') as f:
@@ -388,7 +388,7 @@ async def test_unclosed_file_does_not_change_fs():
 
 @pytest.mark.asyncio
 async def test_closed_file_changes_fs():
-    fs = MemProtocol()
+    fs = MemoryProtocol()
     fs.tree = {'/': {'tmp': {'xxx': {}, 'a.txt': b'data data data'}}}
 
     async with fs.open('/tmp/a.txt', mode='w') as f:
