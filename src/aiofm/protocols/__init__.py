@@ -1,10 +1,20 @@
 from abc import ABCMeta, abstractmethod
+from pathlib import PurePath
 from typing import Sequence, Tuple
 
 
 class BaseProtocol(metaclass=ABCMeta):
     def __init__(self, *args, **kwargs):
         super().__init__()
+
+    @staticmethod
+    def _split_path(path: str | PurePath):
+        try:
+            path_parts = path.parts
+        except AttributeError:
+            path_parts = PurePath(path).parts
+
+        return path_parts
 
     @staticmethod
     @abstractmethod
