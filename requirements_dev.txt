@@ -1,15 +1,7 @@
--e .
-codecov
-coverage
 flake8
 memory_profiler
 pip
 pre-commit
-pytest
-pytest-asyncio
-pytest-cov
-pytest-runner
 Sphinx
 sphinx-autodoc-typehints
-tox
 wheel
