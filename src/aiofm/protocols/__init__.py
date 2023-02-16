@@ -49,3 +49,7 @@ class BaseProtocol(metaclass=ABCMeta):
     @abstractmethod
     async def glob(self, pattern: str) -> Tuple:
         pass
+
+
+def get_protocol_for_path(path: str) -> BaseProtocol:
+    raise NotImplemented
