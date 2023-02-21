@@ -2,7 +2,7 @@ import collections.abc
 import logging
 from contextlib import asynccontextmanager
 from pathlib import PurePath
-from typing import Sequence, Tuple
+from typing import Sequence, Tuple, Generator, Mapping
 
 import aioboto3
 import boto3
@@ -64,23 +64,14 @@ class S3Protocol(BaseProtocol):
 
         return bucket_name, prefix
 
-    def ls(self, path: str | PurePath, pattern: str = None, *args, **kwargs) -> Sequence:
+    def ls(self, path: str | PurePath, pattern: str = None, *args, **kwargs) -> Generator[Mapping, None, None]:
         bucket_name, prefix = self._split_path(path)
 
         paginator = self.client.get_paginator('list_objects')
         page_iterator = paginator.paginate(Bucket=bucket_name, Prefix=prefix)
 
         for page in page_iterator:
-            print(page['Contents'])
-
-        keys = tuple(filter(
-            None, (obj_summary.key.replace(path, '', 1).split('/', 1)[0] for obj_summary in objects)
-        ))
-
-        if keys:
-            return keys
-
-        raise FileNotFoundError
+            yield from page['Contents']
 
     @asynccontextmanager
     async def open(self, path: str | PurePath, *args, **kwargs):
