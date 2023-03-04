@@ -3,9 +3,10 @@ import logging
 from contextlib import asynccontextmanager
 from io import BytesIO
 from pathlib import PurePath
-from typing import Sequence, Tuple
+from typing import Sequence, Tuple, Generator, Mapping
 
 import aioboto3
+import boto3
 import urllib3
 from minio import Minio
 from pydantic import SecretStr
@@ -63,20 +64,30 @@ class S3WritableFile:
 class S3Protocol(BaseProtocol):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
-        self.__init_resource(*args, **kwargs)
+        self.client = None
+        self.__init_resource(**kwargs)
 
-    def __init_resource(self, *args, **kwargs):
+    def __init_resource(self, **kwargs):
         try:
-            params = kwargs['params']
-            credentials = params['auth']
-            self.resource = aioboto3.resource(
-                's3', aws_access_key_id=credentials['access_key'], aws_secret_access_key=credentials['access_secret'],
-                endpoint_url=params['S3_ENDPOINT_URL'], verify=params['VERIFY_SSL_CERTIFICATES']
-            )
+            params = kwargs.get('params')
+
+            if params:
+                auth = params.get('auth')
+                self.client = boto3.client(
+                    's3',
+                    region_name=None,
+                    use_ssl=params['USE_SSL'],
+                    verify=params['VERIFY_SSL_CERTIFICATES'],
+                    endpoint_url=params['S3_ENDPOINT_URL'],
+                    aws_access_key_id=auth['access_key'],
+                    aws_secret_access_key=auth['access_secret'],
+                )
+            else:
+                self.client = boto3.client('s3')
         except (TypeError, KeyError):
             logger.warning('No auth params has been provided for S3')
 
-            self.resource = None
+            self.client = None
 
     @staticmethod
     def _split_path(path: str | PurePath) -> Sequence[str]:
@@ -86,24 +97,25 @@ class S3Protocol(BaseProtocol):
             path_parts = PurePath(path).parts
 
         if path_parts[0] == '/':
-            return path_parts[1], PurePath(*path_parts[2:])
+            bucket_name, prefix_parts = path_parts[1], path_parts[2:]
+        else:
+            bucket_name, prefix_parts = path_parts[0], path_parts[1:]
 
-        return path_parts[0], PurePath(*path_parts[1:])
+        if prefix_parts:
+            prefix = '/'.join(prefix_parts)
+        else:
+            prefix = ''
 
-    async def ls(self, path: str | PurePath, pattern: str = None, *args, **kwargs) -> Sequence:
-        bucket_name, path = self._split_path(path)
-        path = f'{path}/'
+        return bucket_name, prefix
 
-        objects = self.resource.Bucket(bucket_name).objects.filter(Prefix=path)
+    def ls(self, path: str | PurePath, pattern: str = None, *args, **kwargs) -> Generator[Mapping, None, None]:
+        bucket_name, prefix = self._split_path(path)
 
-        keys = tuple(filter(
-            None, (obj_summary.key.replace(path, '', 1).split('/', 1)[0] for obj_summary in objects)
-        ))
+        paginator = self.client.get_paginator('list_objects')
+        page_iterator = paginator.paginate(Bucket=bucket_name, Prefix=prefix)
 
-        if keys:
-            return keys
-
-        raise FileNotFoundError
+        for page in page_iterator:
+            yield from page['Contents']
 
     async def open(self, path: str | PurePath, *args, **kwargs):
         mode = kwargs.pop('mode', args[0] if len(args) else 'r')
