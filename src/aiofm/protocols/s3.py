@@ -1,6 +1,7 @@
 import collections.abc
 import logging
 from contextlib import asynccontextmanager
+from io import BytesIO
 from pathlib import PurePath
 from typing import Sequence, Tuple
 
@@ -14,6 +15,49 @@ from aiofm.protocols import BaseProtocol
 
 
 logger = logging.getLogger(__name__)
+
+
+class S3ReadableFile:
+    def __init__(self, stream):
+        self.stream = stream
+
+    async def read(self, size=-1):
+        if size == -1:
+            async for chunk in self.stream.iter_chunks(4096):
+                yield chunk
+        else:
+            async for chunk in self.stream.iter_chunks(size):
+                yield chunk
+
+    async def close(self):
+        await self.stream.close()
+
+    async def __aenter__(self):
+        return self
+
+    async def __aexit__(self, exc_type, exc_val, exc_tb):
+        await self.close()
+
+
+class S3WritableFile:
+    def __init__(self, bucket_name, object_key, bucket):
+        self.bucket_name = bucket_name
+        self.object_key = object_key
+        self.bucket = bucket
+        self.buffer = BytesIO()
+
+    async def write(self, data):
+        self.buffer.write(data)
+
+    async def close(self):
+        self.buffer.seek(0)
+        await self.bucket.Object(self.object_key).upload_fileobj(self.buffer)
+
+    async def __aenter__(self):
+        return self
+
+    async def __aexit__(self, exc_type, exc_val, exc_tb):
+        self.buffer.close()
 
 
 class S3Protocol(BaseProtocol):
@@ -61,35 +105,33 @@ class S3Protocol(BaseProtocol):
 
         raise FileNotFoundError
 
-    @asynccontextmanager
     async def open(self, path: str | PurePath, *args, **kwargs):
         mode = kwargs.pop('mode', args[0] if len(args) else 'r')
+        bucket_name, path = self._split_path(path)
+        bucket = self.resource.Bucket(bucket_name)
 
         try:
-            encoding = kwargs.get('encoding', 'utf-8')
-            item = self._get_tree_item(self.tree, path)
+            if 'b' not in mode:
+                raise ValueError('S3 files must be opened in binary mode')
 
-            if 'b' in mode:
-                f = ContextualBytesIO(item)
-            else:
-                f = ContextualStringIO(item.decode(encoding))
+            if '+' in mode:
+                raise ValueError('S3 files do not support '+' mode')
 
-            yield f
+            mode = mode.replace('b', '')
 
-            if 'w' in mode:
-                if 'b' in mode:
-                    item = f.getvalue()
-                else:
-                    item = f.getvalue().encode(encoding)
+            if mode not in {'r', 'w'}:
+                raise ValueError(f'Invalid mode: {mode}')
 
-                self._set_tree_item(self.tree, path, item)
+            if mode == 'r':
+                obj = bucket.Object(path)
+                stream = await obj.get()['Body']
+
+                return S3ReadableFile(stream)
+            elif mode == 'w':
+                return S3WritableFile(bucket_name, path, bucket)
         except FileNotFoundError:
             if 'w' in mode or 'a' in mode:
-                f = ContextualStringIO(None, *args, **kwargs)
-
-                yield f
-
-                self._set_tree_item(self.tree, path, f)
+                return S3WritableFile(bucket_name, path, bucket)
             else:
                 raise
 
