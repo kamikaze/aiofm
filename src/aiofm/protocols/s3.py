@@ -5,15 +5,13 @@ from io import BytesIO
 from pathlib import PurePath
 from typing import Sequence, Tuple, Generator, Mapping
 
-import aioboto3
 import boto3
 import urllib3
+from botocore.response import StreamingBody
 from minio import Minio
 from pydantic import SecretStr
 
-from aiofm.helpers import ContextualBytesIO, ContextualStringIO
 from aiofm.protocols import BaseProtocol
-
 
 logger = logging.getLogger(__name__)
 
@@ -22,42 +20,40 @@ class S3ReadableFile:
     def __init__(self, stream):
         self.stream = stream
 
-    async def read(self, size=-1):
+    def read(self, size=-1):
         if size == -1:
-            async for chunk in self.stream.iter_chunks(4096):
+            for chunk in self.stream.iter_chunks(4096):
                 yield chunk
         else:
-            async for chunk in self.stream.iter_chunks(size):
+            for chunk in self.stream.iter_chunks(size):
                 yield chunk
 
-    async def close(self):
-        await self.stream.close()
+    def close(self):
+        self.stream.close()
 
-    async def __aenter__(self):
+    def __enter__(self):
         return self
 
-    async def __aexit__(self, exc_type, exc_val, exc_tb):
-        await self.close()
+    def __exit__(self, exc_type, exc_val, exc_tb):
+        self.close()
 
 
 class S3WritableFile:
-    def __init__(self, bucket_name, object_key, bucket):
-        self.bucket_name = bucket_name
-        self.object_key = object_key
-        self.bucket = bucket
+    def __init__(self, s3_object):
+        self.s3_object = s3_object
         self.buffer = BytesIO()
 
-    async def write(self, data):
+    def write(self, data):
         self.buffer.write(data)
 
-    async def close(self):
+    def close(self):
         self.buffer.seek(0)
-        await self.bucket.Object(self.object_key).upload_fileobj(self.buffer)
+        self.s3_object.upload_fileobj(self.buffer)
 
-    async def __aenter__(self):
+    def __enter__(self):
         return self
 
-    async def __aexit__(self, exc_type, exc_val, exc_tb):
+    def __exit__(self, exc_type, exc_val, exc_tb):
         self.buffer.close()
 
 
@@ -117,10 +113,9 @@ class S3Protocol(BaseProtocol):
         for page in page_iterator:
             yield from page['Contents']
 
-    async def open(self, path: str | PurePath, *args, **kwargs):
+    def open(self, path: str | PurePath, *args, **kwargs):
         mode = kwargs.pop('mode', args[0] if len(args) else 'r')
         bucket_name, path = self._split_path(path)
-        bucket = self.resource.Bucket(bucket_name)
 
         try:
             if 'b' not in mode:
@@ -135,15 +130,15 @@ class S3Protocol(BaseProtocol):
                 raise ValueError(f'Invalid mode: {mode}')
 
             if mode == 'r':
-                obj = bucket.Object(path)
-                stream = await obj.get()['Body']
+                obj = self.client.get_object(Bucket=bucket_name, Key=path)
+                stream = StreamingBody(raw_stream=obj['Body'], content_length=obj['ContentLength'])
 
                 return S3ReadableFile(stream)
             elif mode == 'w':
-                return S3WritableFile(bucket_name, path, bucket)
+                return S3WritableFile(bucket_name, path)
         except FileNotFoundError:
             if 'w' in mode or 'a' in mode:
-                return S3WritableFile(bucket_name, path, bucket)
+                return S3WritableFile(bucket_name, path)
             else:
                 raise
 
