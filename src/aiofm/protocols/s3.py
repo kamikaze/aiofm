@@ -42,7 +42,7 @@ class S3ReadableFile:
 
 
 class S3WritableFile(BytesIO):
-    def __init__(self, bucket_name, object_key, s3_client):
+    def __init__(self, bucket_name: str, object_key: str, s3_client, part_size: int = 16 * 1024 * 1024):
         super().__init__()
         self.bucket_name = bucket_name
         self.object_key = object_key
@@ -50,6 +50,7 @@ class S3WritableFile(BytesIO):
         self.upload_id = None
         self.parts = []
         self.part_number = 1
+        self.part_size = part_size
 
     def write(self, data):
         if isinstance(data, StreamingBody):
@@ -57,23 +58,42 @@ class S3WritableFile(BytesIO):
         elif isinstance(data, S3ReadableFile):
             self.s3_client.upload_fileobj(data.stream, self.bucket_name, self.object_key)
         elif isinstance(data, bytes):
+            super().write(data)
+
             if not self.upload_id:
                 create_mpu_result = self.s3_client.create_multipart_upload(
                     Bucket=self.bucket_name, Key=self.object_key
                 )
                 self.upload_id = create_mpu_result['UploadId']
 
-            part = self.s3_client.upload_part(
-                Body=data, Bucket=self.bucket_name, Key=self.object_key, PartNumber=self.part_number,
-                UploadId=self.upload_id
-            )
-            self.parts.append({'ETag': part['ETag'], 'PartNumber': self.part_number})
-            self.part_number += 1
+            if self.tell() >= self.part_size:
+                self.seek(0)
+                part = self.s3_client.upload_part(
+                    Body=self.read(self.part_size), Bucket=self.bucket_name, Key=self.object_key,
+                    PartNumber=self.part_number, UploadId=self.upload_id
+                )
+                self.seek(0)
+                self.truncate(self.part_size)
+                self.parts.append({'ETag': part['ETag'], 'PartNumber': self.part_number})
+                self.part_number += 1
         else:
             raise ValueError(f'Unsupported data type: {type(data)}')
 
+    def flush(self):
+        if self.tell() > 0:
+            self.seek(0)
+            part = self.s3_client.upload_part(
+                Body=self.read(), Bucket=self.bucket_name, Key=self.object_key,
+                PartNumber=self.part_number, UploadId=self.upload_id
+            )
+            self.seek(0)
+            self.truncate()
+            self.parts.append({'ETag': part['ETag'], 'PartNumber': self.part_number})
+            self.part_number += 1
+
     def close(self):
         if self.upload_id and self.parts:
+            self.flush()
             self.s3_client.complete_multipart_upload(
                 Bucket=self.bucket_name, Key=self.object_key, UploadId=self.upload_id,
                 MultipartUpload={'Parts': self.parts}
