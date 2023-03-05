@@ -1,9 +1,8 @@
 import collections.abc
 import logging
 from contextlib import asynccontextmanager
-from io import BytesIO
 from pathlib import PurePath
-from typing import Sequence, Tuple, Generator, Mapping
+from typing import Sequence, Tuple, Generator
 
 import boto3
 import urllib3
@@ -111,7 +110,7 @@ class S3Protocol(BaseProtocol):
 
         return bucket_name, prefix
 
-    def ls(self, path: str | PurePath, pattern: str = None, *args, **kwargs) -> Generator[str, None, None]:
+    def ls(self, path: str | PurePath, pattern: str = None, *args, **kwargs) -> Generator[PurePath, None, None]:
         bucket_name, prefix = self._split_path(path)
 
         paginator = self.client.get_paginator('list_objects')
@@ -119,7 +118,7 @@ class S3Protocol(BaseProtocol):
 
         for page in page_iterator:
             for item in page['Contents']:
-                yield item['Key']
+                yield PurePath(item['Key'])
 
     def open(self, path: str | PurePath, *args, **kwargs):
         mode = kwargs.pop('mode', args[0] if len(args) else 'r')
