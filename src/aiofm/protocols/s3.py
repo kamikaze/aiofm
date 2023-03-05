@@ -111,14 +111,15 @@ class S3Protocol(BaseProtocol):
 
         return bucket_name, prefix
 
-    def ls(self, path: str | PurePath, pattern: str = None, *args, **kwargs) -> Generator[Mapping, None, None]:
+    def ls(self, path: str | PurePath, pattern: str = None, *args, **kwargs) -> Generator[str, None, None]:
         bucket_name, prefix = self._split_path(path)
 
         paginator = self.client.get_paginator('list_objects')
         page_iterator = paginator.paginate(Bucket=bucket_name, Prefix=prefix)
 
         for page in page_iterator:
-            yield from page['Contents']
+            for item in page['Contents']:
+                yield item['Key']
 
     def open(self, path: str | PurePath, *args, **kwargs):
         mode = kwargs.pop('mode', args[0] if len(args) else 'r')

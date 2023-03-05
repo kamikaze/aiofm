@@ -6,9 +6,7 @@ from aiofm.protocols.s3 import S3Protocol
 def main():
     protocol = S3Protocol()
 
-    for item in protocol.ls('rtu-datasets/own_transport/'):
-        path = item['Key']
-
+    for path in protocol.ls('rtu-datasets/own_transport/'):
         if path == 'own_transport/':
             continue
 
