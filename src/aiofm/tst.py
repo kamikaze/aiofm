@@ -14,9 +14,12 @@ def main():
 
         print(path)
 
-        with protocol.open(f'rtu-datasets/{path}', 'rb') as fi, open(PurePath(path).name, 'wb') as fo:
-            for chunk in fi:
-                fo.write(chunk)
+        # with protocol.open(f'rtu-datasets/{path}', 'rb') as fi, open(PurePath(path).name, 'wb') as fo:
+        #     for chunk in fi:
+        #         fo.write(chunk)
+
+        # with protocol.open(f'rtu-datasets/{path}', 'rb') as fi, protocol.open(f'rtu-datasets/{path}.copy', 'wb') as fo:
+        #     fo.write(fi)
 
 
 if __name__ == '__main__':

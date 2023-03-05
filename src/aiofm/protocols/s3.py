@@ -28,6 +28,9 @@ class S3ReadableFile:
             for chunk in self.stream.iter_chunks(size):
                 yield chunk
 
+    def __iter__(self):
+        yield from self.read()
+
     def close(self):
         self.stream.close()
 
@@ -39,22 +42,26 @@ class S3ReadableFile:
 
 
 class S3WritableFile:
-    def __init__(self, s3_object):
-        self.s3_object = s3_object
-        self.buffer = BytesIO()
+    def __init__(self, bucket_name, object_key, s3_client):
+        self.bucket_name = bucket_name
+        self.object_key = object_key
+        self.s3_client = s3_client
 
     def write(self, data):
-        self.buffer.write(data)
-
-    def close(self):
-        self.buffer.seek(0)
-        self.s3_object.upload_fileobj(self.buffer)
+        if isinstance(data, StreamingBody):
+            self.s3_client.upload_fileobj(data, self.bucket_name, self.object_key)
+        elif isinstance(data, S3ReadableFile):
+            self.s3_client.upload_fileobj(data.stream, self.bucket_name, self.object_key)
+        elif isinstance(data, bytes):
+            self.s3_client.put_object(Body=data, Bucket=self.bucket_name, Key=self.object_key)
+        else:
+            raise ValueError(f'Unsupported data type: {type(data)}')
 
     def __enter__(self):
         return self
 
     def __exit__(self, exc_type, exc_val, exc_tb):
-        self.buffer.close()
+        pass
 
 
 class S3Protocol(BaseProtocol):
@@ -122,7 +129,7 @@ class S3Protocol(BaseProtocol):
                 raise ValueError('S3 files must be opened in binary mode')
 
             if '+' in mode:
-                raise ValueError('S3 files do not support '+' mode')
+                raise ValueError('S3 files do not support "+" mode')
 
             mode = mode.replace('b', '')
 
@@ -135,10 +142,10 @@ class S3Protocol(BaseProtocol):
 
                 return S3ReadableFile(stream)
             elif mode == 'w':
-                return S3WritableFile(bucket_name, path)
+                return S3WritableFile(bucket_name, path, self.client)
         except FileNotFoundError:
             if 'w' in mode or 'a' in mode:
-                return S3WritableFile(bucket_name, path)
+                return S3WritableFile(bucket_name, path, self.client)
             else:
                 raise
 
