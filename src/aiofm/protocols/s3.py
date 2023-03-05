@@ -1,6 +1,7 @@
 import collections.abc
 import logging
 from contextlib import asynccontextmanager
+from io import BytesIO
 from pathlib import PurePath
 from typing import Sequence, Tuple, Generator
 
@@ -21,7 +22,7 @@ class S3ReadableFile:
 
     def read(self, size=-1):
         if size == -1:
-            for chunk in self.stream.iter_chunks(4096):
+            for chunk in self.stream.iter_chunks(16777216):  # 16MB
                 yield chunk
         else:
             for chunk in self.stream.iter_chunks(size):
@@ -40,11 +41,15 @@ class S3ReadableFile:
         self.close()
 
 
-class S3WritableFile:
+class S3WritableFile(BytesIO):
     def __init__(self, bucket_name, object_key, s3_client):
+        super().__init__()
         self.bucket_name = bucket_name
         self.object_key = object_key
         self.s3_client = s3_client
+        self.upload_id = None
+        self.parts = []
+        self.part_number = 1
 
     def write(self, data):
         if isinstance(data, StreamingBody):
@@ -52,15 +57,33 @@ class S3WritableFile:
         elif isinstance(data, S3ReadableFile):
             self.s3_client.upload_fileobj(data.stream, self.bucket_name, self.object_key)
         elif isinstance(data, bytes):
-            self.s3_client.put_object(Body=data, Bucket=self.bucket_name, Key=self.object_key)
+            if not self.upload_id:
+                create_mpu_result = self.s3_client.create_multipart_upload(
+                    Bucket=self.bucket_name, Key=self.object_key
+                )
+                self.upload_id = create_mpu_result['UploadId']
+
+            part = self.s3_client.upload_part(
+                Body=data, Bucket=self.bucket_name, Key=self.object_key, PartNumber=self.part_number,
+                UploadId=self.upload_id
+            )
+            self.parts.append({'ETag': part['ETag'], 'PartNumber': self.part_number})
+            self.part_number += 1
         else:
             raise ValueError(f'Unsupported data type: {type(data)}')
+
+    def close(self):
+        if self.upload_id and self.parts:
+            self.s3_client.complete_multipart_upload(
+                Bucket=self.bucket_name, Key=self.object_key, UploadId=self.upload_id,
+                MultipartUpload={'Parts': self.parts}
+            )
 
     def __enter__(self):
         return self
 
     def __exit__(self, exc_type, exc_val, exc_tb):
-        pass
+        self.close()
 
 
 class S3Protocol(BaseProtocol):
