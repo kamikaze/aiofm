@@ -118,7 +118,7 @@ class S3Protocol(BaseProtocol):
 
         for page in page_iterator:
             for item in page['Contents']:
-                yield PurePath(item['Key'])
+                yield PurePath(f'/{bucket_name}/{item["Key"]}')
 
     def open(self, path: str | PurePath, *args, **kwargs):
         mode = kwargs.pop('mode', args[0] if len(args) else 'r')
