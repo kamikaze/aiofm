@@ -42,15 +42,11 @@ class S3ReadableFile:
 
 
 class S3WritableFile(BytesIO):
-    def __init__(self, bucket_name: str, object_key: str, s3_client, part_size: int = 16 * 1024 * 1024):
+    def __init__(self, bucket_name: str, object_key: str, s3_client):
         super().__init__()
         self.bucket_name = bucket_name
         self.object_key = object_key
         self.s3_client = s3_client
-        self.upload_id = None
-        self.parts = []
-        self.part_number = 1
-        self.part_size = part_size
 
     def write(self, data):
         if isinstance(data, StreamingBody):
@@ -59,52 +55,14 @@ class S3WritableFile(BytesIO):
             self.s3_client.upload_fileobj(data.stream, self.bucket_name, self.object_key)
         elif isinstance(data, bytes):
             super().write(data)
-
-            if not self.upload_id:
-                create_mpu_result = self.s3_client.create_multipart_upload(
-                    Bucket=self.bucket_name, Key=self.object_key
-                )
-                self.upload_id = create_mpu_result['UploadId']
-
-            if self.tell() >= self.part_size:
-                self.seek(0)
-                part = self.s3_client.upload_part(
-                    Body=self.read(self.part_size), Bucket=self.bucket_name, Key=self.object_key,
-                    PartNumber=self.part_number, UploadId=self.upload_id
-                )
-
-                remaining_size = self.getbuffer().nbytes - self.tell()
-                self.getbuffer()[:remaining_size] = self.getbuffer()[self.tell():self.getbuffer().nbytes]
-
-                self.seek(0)
-                self.truncate(remaining_size)
-                self.parts.append({'ETag': part['ETag'], 'PartNumber': self.part_number})
-                self.part_number += 1
         else:
             raise ValueError(f'Unsupported data type: {type(data)}')
 
-    def flush(self):
-        pass
-
-    def _flush(self):
-        if self.tell() > 0:
-            self.seek(0)
-            part = self.s3_client.upload_part(
-                Body=self.read(), Bucket=self.bucket_name, Key=self.object_key,
-                PartNumber=self.part_number, UploadId=self.upload_id
-            )
-            self.seek(0)
-            self.truncate()
-            self.parts.append({'ETag': part['ETag'], 'PartNumber': self.part_number})
-            self.part_number += 1
-
     def close(self):
-        if self.upload_id and self.parts:
-            self._flush()
-            self.s3_client.complete_multipart_upload(
-                Bucket=self.bucket_name, Key=self.object_key, UploadId=self.upload_id,
-                MultipartUpload={'Parts': self.parts}
-            )
+        self.flush()
+        self.seek(0)
+        self.s3_client.upload_fileobj(self, Bucket=self.bucket_name, Key=self.object_key)
+        super().close()
 
     def __enter__(self):
         return self
