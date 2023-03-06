@@ -84,6 +84,9 @@ class S3WritableFile(BytesIO):
             raise ValueError(f'Unsupported data type: {type(data)}')
 
     def flush(self):
+        pass
+
+    def _flush(self):
         if self.tell() > 0:
             self.seek(0)
             part = self.s3_client.upload_part(
@@ -97,7 +100,7 @@ class S3WritableFile(BytesIO):
 
     def close(self):
         if self.upload_id and self.parts:
-            self.flush()
+            self._flush()
             self.s3_client.complete_multipart_upload(
                 Bucket=self.bucket_name, Key=self.object_key, UploadId=self.upload_id,
                 MultipartUpload={'Parts': self.parts}
