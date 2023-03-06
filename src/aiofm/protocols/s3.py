@@ -63,6 +63,8 @@ class S3WritableFile(BytesIO):
             self.flush()
             self.seek(0)
             self.s3_client.upload_fileobj(self, Bucket=self.bucket_name, Key=self.object_key)
+            self.seek(0)
+            self.truncate()
         super().close()
 
     def __enter__(self):
