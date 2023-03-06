@@ -72,8 +72,12 @@ class S3WritableFile(BytesIO):
                     Body=self.read(self.part_size), Bucket=self.bucket_name, Key=self.object_key,
                     PartNumber=self.part_number, UploadId=self.upload_id
                 )
+
+                remaining_size = self.getbuffer().nbytes - self.tell()
+                self.getbuffer()[:remaining_size] = self.getbuffer()[self.tell():self.getbuffer().nbytes]
+
                 self.seek(0)
-                self.truncate(self.part_size)
+                self.truncate(remaining_size)
                 self.parts.append({'ETag': part['ETag'], 'PartNumber': self.part_number})
                 self.part_number += 1
         else:

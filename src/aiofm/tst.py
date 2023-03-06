@@ -1,5 +1,3 @@
-from pathlib import PurePath
-
 from aiofm.protocols.s3 import S3Protocol
 
 
