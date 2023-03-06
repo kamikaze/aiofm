@@ -59,9 +59,10 @@ class S3WritableFile(BytesIO):
             raise ValueError(f'Unsupported data type: {type(data)}')
 
     def close(self):
-        self.flush()
-        self.seek(0)
-        self.s3_client.upload_fileobj(self, Bucket=self.bucket_name, Key=self.object_key)
+        if self.tell() > 0:
+            self.flush()
+            self.seek(0)
+            self.s3_client.upload_fileobj(self, Bucket=self.bucket_name, Key=self.object_key)
         super().close()
 
     def __enter__(self):
