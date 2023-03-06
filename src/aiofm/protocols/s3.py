@@ -47,6 +47,7 @@ class S3WritableFile(BytesIO):
         self.bucket_name = bucket_name
         self.object_key = object_key
         self.s3_client = s3_client
+        self.flushed_to_s3 = False
 
     def write(self, data):
         if isinstance(data, StreamingBody):
@@ -58,11 +59,14 @@ class S3WritableFile(BytesIO):
         else:
             raise ValueError(f'Unsupported data type: {type(data)}')
 
+    def _flush(self):
+        self.seek(0)
+        self.s3_client.upload_fileobj(self, Bucket=self.bucket_name, Key=self.object_key)
+
     def close(self):
-        if self.tell() > 0:
-            self.flush()
-            self.seek(0)
-            self.s3_client.upload_fileobj(self, Bucket=self.bucket_name, Key=self.object_key)
+        if not self.flushed_to_s3 and self.tell() > 0:
+            self.flushed_to_s3 = True
+            self._flush()
             self.seek(0)
             self.truncate()
         super().close()
