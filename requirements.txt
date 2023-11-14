@@ -1,23 +1,4 @@
-# =============================================================================
-# DEPRECATION WARNING:
-#
-# The file `requirements.txt` does not influence the package dependencies and
-# will not be automatically created in the next version of PyScaffold (v4.x).
-#
-# Please have look at the docs for better alternatives
-# (`Dependency Management` section).
-# =============================================================================
-#
-# Add your pinned requirements so that they can be easily installed with:
-# pip install -r requirements.txt
-# Remember to also add them in setup.cfg but unpinned.
-# Example:
-# numpy==1.13.3
-# scipy==1.0
-#
-
-#-e .
 aioboto3==12.0.0
-aiohttp==3.8.6
-minio==7.1.17
-pydantic==1.10.13
+aiohttp==3.9.0b1
+minio==7.2.0
+pydantic==2.5.0
