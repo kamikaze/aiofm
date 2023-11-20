@@ -3,10 +3,11 @@ import logging
 from contextlib import asynccontextmanager
 from io import BytesIO
 from pathlib import PurePath
-from typing import Sequence, Tuple, Generator
+from typing import Sequence, Tuple, AsyncGenerator
 
-import boto3
+import aioboto3
 import urllib3
+from aiobotocore.session import get_session
 from botocore.response import StreamingBody
 from minio import Minio
 from pydantic import SecretStr
@@ -75,30 +76,7 @@ class S3WritableFile(BytesIO):
 class S3Protocol(BaseProtocol):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
-        self.client = None
-        self.__init_resource(**kwargs)
-
-    def __init_resource(self, **kwargs):
-        try:
-            params = kwargs.get('params')
-
-            if params:
-                auth = params.get('auth')
-                self.client = boto3.client(
-                    's3',
-                    region_name=None,
-                    use_ssl=params['USE_SSL'],
-                    verify=params['VERIFY_SSL_CERTIFICATES'],
-                    endpoint_url=params['S3_ENDPOINT_URL'],
-                    aws_access_key_id=auth['access_key'],
-                    aws_secret_access_key=auth['access_secret'],
-                )
-            else:
-                self.client = boto3.client('s3')
-        except (TypeError, KeyError):
-            logger.warning('No auth params has been provided for S3')
-
-            self.client = None
+        self.client = get_session().create_client('s3')
 
     @staticmethod
     def _split_path(path: str | PurePath) -> Sequence[str]:
@@ -119,15 +97,17 @@ class S3Protocol(BaseProtocol):
 
         return bucket_name, prefix
 
-    def ls(self, path: str | PurePath, pattern: str = None, *args, **kwargs) -> Generator[PurePath, None, None]:
+    async def ls(self, path: str | PurePath, pattern: str = None, *args,
+                 **kwargs) -> AsyncGenerator[PurePath, None]:
         bucket_name, prefix = self._split_path(path)
 
-        paginator = self.client.get_paginator('list_objects')
-        page_iterator = paginator.paginate(Bucket=bucket_name, Prefix=prefix)
+        async with self.client as client:
+            paginator = client.get_paginator('list_objects_v2')
+            page_iterator = paginator.paginate(Bucket=bucket_name, Prefix=prefix)
 
-        for page in page_iterator:
-            for item in page['Contents']:
-                yield PurePath(f'/{bucket_name}/{item["Key"]}')
+            async for page in page_iterator:
+                for item in page.get('Contents', []):
+                    yield PurePath(f'/{bucket_name}/{item["Key"]}')
 
     def open(self, path: str | PurePath, *args, **kwargs):
         mode = kwargs.pop('mode', args[0] if len(args) else 'r')

@@ -4,20 +4,21 @@ from aiofm.protocols.s3 import S3Protocol
 
 
 @pytest.mark.asyncio
-async def test_ls_tmp_dir(s3_resource):
+async def test_ls_tmp_dir(s3_client):
     fs = S3Protocol()
-    fs.resource = s3_resource
+    fs.client = s3_client
 
     assert sorted(await fs.ls('/bucket/tmp')) == sorted(('existing.txt', 'existing_dir'))
 
 
 @pytest.mark.asyncio
-async def test_ls_inextisting_dir_fails(s3_resource):
+async def test_ls_inextisting_dir_fails(s3_client):
     fs = S3Protocol()
-    fs.resource = s3_resource(())
+    # fs.client = s3_client(())
 
     with pytest.raises(FileNotFoundError):
-        await fs.ls('/bucket/pmt')
+        async for _ in fs.ls('/rtu-datasets/own_transport/'):
+            pass
 
 
 @pytest.mark.asyncio

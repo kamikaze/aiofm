@@ -30,17 +30,31 @@ def fs_list(fs_tree) -> Dict:
 
 
 @pytest.fixture(scope='function')
-def s3_resource(mocker, fs_list):
+def s3_client(mocker, fs_list):
+    page_size = 10
     bucket_objects = []
+    page = []
 
-    for key in fs_list:
+    for idx, key in enumerate(fs_list):
+        if idx % page_size == 0:
+            page = []
+            bucket_objects.append(page)
+
         obj = mocker.MagicMock()
         obj.key = key
-        bucket_objects.append(obj)
+        page.append(obj)
 
-    resource = mocker.MagicMock()
-    bucket = mocker.MagicMock()
-    bucket.objects.filter.return_value = bucket_objects
-    resource.Bucket.return_value = bucket
+    async def async_filter(*args, **kwargs):
+        return bucket_objects
 
-    return resource
+    async def async_paginate(*args, **kwargs):
+        for _page in bucket_objects:
+            for item in _page:
+                yield item
+
+    client_mock = mocker.MagicMock()
+    paginator_mock = mocker.MagicMock()
+    paginator_mock.paginate.return_value = async_paginate
+    client_mock.get_paginator.return_value = paginator_mock
+
+    return client_mock
