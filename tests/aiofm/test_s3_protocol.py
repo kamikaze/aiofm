@@ -14,10 +14,10 @@ async def test_ls_tmp_dir(s3_client):
 @pytest.mark.asyncio
 async def test_ls_inextisting_dir_fails(s3_client):
     fs = S3Protocol()
-    # fs.client = s3_client(())
+    fs.client = s3_client
 
     with pytest.raises(FileNotFoundError):
-        async for _ in fs.ls('/rtu-datasets/own_transport/'):
+        async for _ in fs.ls('/bucket/missing/'):
             pass
 
 

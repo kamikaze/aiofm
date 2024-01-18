@@ -100,6 +100,7 @@ class S3Protocol(BaseProtocol):
     async def ls(self, path: str | PurePath, pattern: str = None, *args,
                  **kwargs) -> AsyncGenerator[PurePath, None]:
         bucket_name, prefix = self._split_path(path)
+        has_items = False
 
         async with self.client as client:
             paginator = client.get_paginator('list_objects_v2')
@@ -107,7 +108,11 @@ class S3Protocol(BaseProtocol):
 
             async for page in page_iterator:
                 for item in page.get('Contents', []):
+                    has_items = True
                     yield PurePath(f'/{bucket_name}/{item["Key"]}')
+
+        if not has_items:
+            raise FileNotFoundError
 
     def open(self, path: str | PurePath, *args, **kwargs):
         mode = kwargs.pop('mode', args[0] if len(args) else 'r')

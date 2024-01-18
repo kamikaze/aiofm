@@ -1,6 +1,8 @@
 from typing import Dict, Generator
+from unittest.mock import patch
 
 import pytest
+from aiobotocore.session import AioSession
 
 
 @pytest.fixture(scope='session')
@@ -29,32 +31,27 @@ def fs_list(fs_tree) -> Dict:
     return dict(flatten(fs_tree))
 
 
-@pytest.fixture(scope='function')
-def s3_client(mocker, fs_list):
-    page_size = 10
-    bucket_objects = []
-    page = []
+@pytest.fixture
+async def aioboto3_session():
+    async with AioSession() as session:
+        yield session
 
-    for idx, key in enumerate(fs_list):
-        if idx % page_size == 0:
-            page = []
-            bucket_objects.append(page)
 
-        obj = mocker.MagicMock()
-        obj.key = key
-        page.append(obj)
+@pytest.fixture
+async def s3_client(aioboto3_session):
+    yield aioboto3_session.create_client('s3')
 
-    async def async_filter(*args, **kwargs):
-        return bucket_objects
 
-    async def async_paginate(*args, **kwargs):
-        for _page in bucket_objects:
-            for item in _page:
-                yield item
+@pytest.fixture
+def s3_protocol_mock(aioboto3_session, s3_client):
+    with patch('aiofm.protocols.s3.get_session', return_value=aioboto3_session), \
+         patch('aiofm.protocols.s3.BaseProtocol.get_session', return_value=aioboto3_session):
 
-    client_mock = mocker.MagicMock()
-    paginator_mock = mocker.MagicMock()
-    paginator_mock.paginate.return_value = async_paginate
-    client_mock.get_paginator.return_value = paginator_mock
+        # Set up the S3 client mock
+        page_mock = {'Contents': [{'Key': 'file1.txt'}, {'Key': 'file2.txt'}]}
+        s3_client.paginate.return_value.__aiter__.return_value.__anext__.side_effect = [
+            {'Contents': []},  # Empty page to exit the loop
+            page_mock
+        ]
 
-    return client_mock
+        yield s3_client
