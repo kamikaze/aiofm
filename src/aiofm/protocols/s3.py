@@ -5,7 +5,6 @@ from io import BytesIO
 from pathlib import PurePath
 from typing import Sequence, Tuple, AsyncGenerator
 
-import aioboto3
 import urllib3
 from aiobotocore.session import get_session
 from botocore.response import StreamingBody
